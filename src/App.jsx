@@ -1,55 +1,77 @@
-import iziToast from 'izitoast';
-import 'izitoast/dist/css/iziToast.min.css';
-import { useEffect, useState } from 'react';
-import ContactForm from './components/ContactForm/ContactForm';
-import SearchBox from './components/SearchBox/SearchBox';
-import ContactList from './components/ContactList/ContactList';
-import initialContacts from './initialContacts.json';
+import { useState } from 'react';
+import { fetchSearch } from './api';
+import SearchBar from './components/SearchBar/SearchBar';
+import ImageGallery from './components/ImageGallery/ImageGallery';
+import Loader from './components/Loader/Loader';
+import ErrorMessage from './components/ErrorMessage/ErrorMessage';
+import LoadMoreBtn from './components/LoadMoreBtn/LoadMoreBtn';
+import ImageModal from './components/ImageModal/ImageModal';
 
 const App = () => {
-  const [searchValue, setSearchValue] = useState('');
-  const [contacts, setContacts] = useState(
-    localStorage.getItem('contacts')
-      ? JSON.parse(localStorage.getItem('contacts'))
-      : initialContacts
-  );
+  const [cards, setCards] = useState([]);
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [isOpenModal, setIsOpenModal] = useState(false);
+  const [modalParams, setModalParams] = useState({});
 
-  const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchValue.toLowerCase())
-  );
+  const handleSearch = async query => {
+    setCards([]);
+    setPage(1);
+    setError(false);
+    setLoading(true);
 
-  const addContact = contact => {
-    if (
-      contacts.find(
-        ({ name, number }) => name === contact.name || number === contact.number
-      )
-    ) {
-      iziToast.warning({
-        position: 'topRight',
-        message: 'This name or number is already exists',
-      });
-      return;
+    try {
+      setCards(await fetchSearch({ query }));
+      setQuery(query);
+    } catch (e) {
+      setError(true);
+    } finally {
+      setLoading(false);
     }
-    setContacts(prevContacts => [...prevContacts, contact]);
   };
 
-  const deleteContact = id => {
-    setContacts(prevContacts =>
-      prevContacts.filter(contact => contact.id !== id)
-    );
+  const handleLoadMore = async () => {
+    setLoading(true);
+    const nextPage = page + 1;
+
+    try {
+      const newCards = await fetchSearch({ query, page: nextPage });
+      if (newCards.length === 0) {
+        return;
+      }
+      setCards(prevCards => [...prevCards, ...newCards]);
+      setPage(nextPage);
+    } catch (error) {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => {
-    localStorage.setItem('contacts', JSON.stringify(contacts));
-  }, [contacts]);
+  const handleOpenModal = data => {
+    setIsOpenModal(true);
+    setModalParams(data);
+  };
 
   return (
-    <div>
-      <h1>Phonebook</h1>
-      <ContactForm addContact={addContact} />
-      <SearchBox value={searchValue} onSearch={setSearchValue} />
-      <ContactList contacts={filteredContacts} onDelete={deleteContact} />
-    </div>
+    <>
+      <SearchBar onSubmit={handleSearch} />
+      {!!cards.length && (
+        <ImageGallery onOpenModal={handleOpenModal} cards={cards} />
+      )}
+      {loading && <Loader />}
+      {error && <ErrorMessage />}
+      {cards.length > 0 && cards.length % 10 === 0 && !loading && !error && (
+        <LoadMoreBtn onLoadMore={handleLoadMore} />
+      )}
+      <ImageModal
+        {...modalParams}
+        isOpen={isOpenModal}
+        onClose={() => setIsOpenModal(false)}
+      />
+    </>
   );
 };
 
