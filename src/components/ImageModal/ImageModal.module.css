@@ -78,3 +78,7 @@
 .likes {
   margin: 0;
 }
+
+.info h3 {
+  text-transform: capitalize;
+}
